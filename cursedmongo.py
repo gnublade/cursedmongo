@@ -30,9 +30,8 @@ class CollectionBrowser(object):
         ('focus', 'black', 'yellow'),
     ]
 
-    def __init__(self, database):
-        conn = pymongo.Connection()
-        self.db = conn[database]
+    def __init__(self, db):
+        self.db = db
 
     def main(self):
         self.collections = self.db.collection_names()
@@ -121,8 +120,15 @@ class CollectionBrowser(object):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('database')
+    parser.add_argument('--host', default='localhost',
+                        help='server to connect to')
+    parser.add_argument('--port', type=int, default=27017,
+                        help='port to connect to')
     args = parser.parse_args()
+
+    conn = pymongo.Connection(args.host, args.port)
+    db = conn[args.database]
     try:
-        CollectionBrowser(args.database).main()
+        CollectionBrowser(db).main()
     except KeyboardInterrupt:
         pass
