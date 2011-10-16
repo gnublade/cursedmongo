@@ -24,6 +24,21 @@ class SelectableText(urwid.Text):
         return key
 
 
+def encoder(obj):
+    return repr(obj) if isinstance(obj, (ObjectId, DBRef)) else str(obj)
+
+def decoder(val):
+    if isinstance(val, basestring):
+        evalable_objects = (
+            'ObjectId',
+            'datetime.datetime',
+            'DBRef',
+        )
+        if val.startswith(evalable_objects):
+            val = eval(val)
+    return val
+
+
 class CollectionBrowser(object):
 
     palette = [
@@ -42,16 +57,9 @@ class CollectionBrowser(object):
         self.documents = [urwid.Text("No Collection Selected")]
         self.document_walker = urwid.PollingListWalker(self.documents)
         self.document_listbox = urwid.ListBox(self.document_walker)
-        self.document_textbox = urwid.Edit("", multiline=True, allow_tab=True)
-        self.document_columns = urwid.Columns([
-            self.document_listbox,
-            urwid.Filler(self.document_textbox, valign='top'),
-        ])
-        self.pile = urwid.Pile([
-            self.collection_listbox,
-            self.document_columns,
-        ])
-        self.loop = urwid.MainLoop(self.pile, self.palette,
+
+        self.columns = urwid.Columns([self.collection_listbox])
+        self.loop = urwid.MainLoop(self.columns, self.palette,
                                    unhandled_input=self.unhandled_input)
         self.loop.run()
 
@@ -59,16 +67,17 @@ class CollectionBrowser(object):
         if key == 'q':
             raise urwid.ExitMainLoop()
 
-        wid = self.get_focused_widget()
+        wid = self.columns.get_focus()
 
         if key == 'enter':
+            idx = self.columns.get_focus_column()
+            self.columns.widget_list[idx + 1:] = []
             if wid == self.collection_listbox:
                 name = self.collections[wid.get_focus()[1]]
                 self.display_collection(name)
             elif wid == self.document_listbox:
                 selected_item = self.document_listbox.get_focus()[0]
-                pk = eval(selected_item.original_widget.get_text()[0])
-                self.document_textbox.set_caption('%s\n' % pk)
+                pk = decoder(selected_item.original_widget.get_text()[0])
                 self.display_document(pk)
             else:
                 self.document_textbox.set_caption("%s\n" % wid)
@@ -78,41 +87,31 @@ class CollectionBrowser(object):
 
         return key
 
-    def get_focused_widget(self):
-        wid = self.pile.get_focus()
-        if wid == self.document_columns:
-            wid = self.document_columns.get_focus()
-        return wid
-
     def display_collection(self, name):
         self.selected_collection = self.db[name]
+        self.columns.widget_list.append(self.document_listbox)
         self.documents[:] = [
             urwid.AttrMap(w, None, 'focus')
-            for w in [SelectableText(repr(d['_id']))
+            for w in [SelectableText(encoder(d['_id']))
                 for d in self.selected_collection.find()]
         ]
 
     def display_document(self, pk):
-        def encoder(obj):
-            return repr(obj)
+        doc_textbox = urwid.Edit("", multiline=True, allow_tab=True)
+        self.columns.widget_list.append(
+            urwid.Filler(doc_textbox, valign='top'))
         doc = self.selected_collection.find_one({'_id': pk})
         text = json.dumps(doc, indent=4, default=encoder)
-        self.document_textbox.set_edit_text(text)
+        doc_textbox.set_edit_text(text)
 
     def save_document(self):
-        def decoder(d):
+        def object_hook(d):
             for key, val in d.items():
-                if isinstance(val, basestring):
-                    evalable_objects = (
-                        'ObjectId',
-                        'datetime.datetime',
-                        'DBRef',
-                    )
-                    if val.startswith(evalable_objects):
-                        d[key] = eval(val)
+                d[key] = decoder(val)
             return d
-        text = self.document_textbox.get_edit_text()
-        doc = json.loads(text, object_hook=decoder)
+        textbox = self.columns.get_focus()
+        text = textbox.get_edit_text()
+        doc = json.loads(text, object_hook=object_hook)
         self.selected_collection.save(doc)
         self.display_document(doc['_id'])
 
