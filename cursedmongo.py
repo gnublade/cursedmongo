@@ -45,6 +45,46 @@ def object_hook(d):
         d[key] = decoder(val)
     return d
 
+class GeneratorList(list):
+
+    def __init__(self, generator):
+        self._generator = generator
+
+    def __getitem__(self, index):
+        for _ in range(index - len(self) + 1):
+            self.append(self._generator.next())
+        return super(GeneratorList, self).__getitem__(index)
+
+class DocumentWalker(urwid.ListWalker):
+    """ListWalker-compatible class for browsing collections."""
+    def __init__(self, documents):
+        self.pos = 0
+        self.documents = documents
+    
+    def _get_at_pos(self, pos):
+        """Return a widget and the position passed."""
+        doc = self.documents[pos]
+        key = doc.get('_id') or doc.get('name', pos)
+        widget = SelectableText(encoder(key))
+        return urwid.AttrMap(widget, None, 'focus'), pos
+    
+    def get_focus(self): 
+        return self._get_at_pos(self.pos)
+    
+    def set_focus(self, pos):
+        self.pos = pos
+        self._modified()
+    
+    def get_next(self, pos):
+        try:
+            return self._get_at_pos(pos + 1)
+        except StopIteration:
+            return None, None
+    
+    def get_prev(self, pos):
+        pos = pos - 1
+        return (None, None) if pos < 0 else self._get_at_pos(pos)
+
 class CollectionBrowser(object):
 
     palette = [
@@ -61,8 +101,8 @@ class CollectionBrowser(object):
             [urwid.AttrMap(w, None, 'focus')
              for w in [SelectableText(n) for n in self.collections]])
         self.collection_listbox = urwid.ListBox(collection_walker)
-        self.documents = [urwid.Text("No Collection Selected")]
-        self.document_walker = urwid.PollingListWalker(self.documents)
+        self.documents = GeneratorList([urwid.Text("No Collection Selected")])
+        self.document_walker = DocumentWalker(self.documents)
         self.document_listbox = urwid.ListBox(self.document_walker)
 
         self.columns = urwid.Columns([self.collection_listbox], dividechars=1)
@@ -145,18 +185,14 @@ class CollectionBrowser(object):
 
     def display_collection(self, collection):
         self.columns.widget_list.append(self.document_listbox)
-        self.documents[:] = [
-            urwid.AttrMap(w, None, 'focus')
-            for w in [SelectableText(encoder(d['_id']))
-                for d in collection.find()]
-        ]
+        self.documents._generator = collection.find()
 
     def display_document(self, doc):
-        schema_walker = urwid.PollingListWalker([
+        schema_walker = urwid.SimpleListWalker([
             urwid.AttrMap(w, None, 'focus')
             for w in [SelectableText("%s: %s" % (
-                encoder(n), json.dumps(v, default=encoder)), wrap='clip')
-                for (n, v) in doc.items()]])
+                encoder(n), json.dumps(doc[n], default=encoder)), wrap='clip')
+                for n in doc]])
         schema_listbox = urwid.ListBox(schema_walker)
         #doc_textbox = urwid.Edit("", multiline=True, allow_tab=True)
         self.columns.widget_list.append(schema_listbox)
