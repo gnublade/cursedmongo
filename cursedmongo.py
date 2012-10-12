@@ -1,21 +1,14 @@
 #!/usr/bin/env python
 
 import argparse
-import datetime
+import json
 import pymongo
 import urwid
 
 from pymongo.database import Database
-from pymongo.collection import Collection
 from pymongo.dbref import DBRef
 from pymongo.objectid import ObjectId
 
-try:
-    import json
-except ImportError:
-    import simplejson as json
-
-from pprint import pformat
 
 class SelectableText(urwid.Text):
 
@@ -29,6 +22,7 @@ class SelectableText(urwid.Text):
 def encoder(obj):
     return repr(obj) if isinstance(obj, (ObjectId, DBRef)) else str(obj)
 
+
 def decoder(val):
     if isinstance(val, basestring):
         evalable_objects = (
@@ -40,10 +34,12 @@ def decoder(val):
             val = eval(val)
     return val
 
+
 def object_hook(d):
     for key, val in d.items():
         d[key] = decoder(val)
     return d
+
 
 class GeneratorList(list):
 
@@ -55,35 +51,37 @@ class GeneratorList(list):
             self.append(self._generator.next())
         return super(GeneratorList, self).__getitem__(index)
 
+
 class DocumentWalker(urwid.ListWalker):
     """ListWalker-compatible class for browsing collections."""
     def __init__(self, documents):
         self.pos = 0
         self.documents = documents
-    
+
     def _get_at_pos(self, pos):
         """Return a widget and the position passed."""
         doc = self.documents[pos]
         key = doc.get('_id') or doc.get('name', pos)
         widget = SelectableText(encoder(key))
         return urwid.AttrMap(widget, None, 'focus'), pos
-    
-    def get_focus(self): 
+
+    def get_focus(self):
         return self._get_at_pos(self.pos)
-    
+
     def set_focus(self, pos):
         self.pos = pos
         self._modified()
-    
+
     def get_next(self, pos):
         try:
             return self._get_at_pos(pos + 1)
         except StopIteration:
             return None, None
-    
+
     def get_prev(self, pos):
         pos = pos - 1
         return (None, None) if pos < 0 else self._get_at_pos(pos)
+
 
 class CollectionBrowser(object):
 
@@ -153,8 +151,9 @@ class CollectionBrowser(object):
                         value = json.loads(text, object_hook=object_hook)
                         parent['values'][key] = text
                         #parent['collection'].save(parent['document'])
-                        textbox = urwid.SelectableText("%s: %s" % (
-                            encoder(n), json.dumps(v, default=encoder)), wrap='clip')
+                        list_item_value = json.dumps(text, default=encoder)
+                        list_item = "%s: %s" % (encoder(key), list_item_value)
+                        textbox = urwid.SelectableText(list_item, wrap='clip')
                     else:
                         text = selected_item.get_text()[0]
                         name, sep, value = text.partition(':')
@@ -203,7 +202,8 @@ class CollectionBrowser(object):
     def display_list(self, values):
         list_walker = urwid.PollingListWalker([
             urwid.AttrMap(w, None, 'focus')
-            for w in [SelectableText(json.dumps(v, default=encoder), wrap='clip')
+            for w in [
+                SelectableText(json.dumps(v, default=encoder), wrap='clip')
                 for v in values]])
         list_listbox = urwid.ListBox(list_walker)
         self.columns.widget_list.append(list_listbox)
