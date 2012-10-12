@@ -11,6 +11,7 @@ from pymongo.objectid import ObjectId
 
 
 class SelectableText(urwid.Text):
+    """Selectable text widget."""
 
     def selectable(self):
         return True
@@ -20,10 +21,12 @@ class SelectableText(urwid.Text):
 
 
 def encoder(obj):
+    """JSON encoder that can encode DBRefs."""
     return repr(obj) if isinstance(obj, (ObjectId, DBRef)) else str(obj)
 
 
 def decoder(val):
+    """JSON decoder that can decode pymongo types."""
     if isinstance(val, basestring):
         evalable_objects = (
             'ObjectId',
@@ -36,12 +39,14 @@ def decoder(val):
 
 
 def object_hook(d):
+    """Decodes the given JSON object using `decoder`."""
     for key, val in d.items():
         d[key] = decoder(val)
     return d
 
 
 class GeneratorList(list):
+    """Allows a generator to be (lazily) accessed as a list."""
 
     def __init__(self, generator):
         self._generator = generator
@@ -54,6 +59,7 @@ class GeneratorList(list):
 
 class DocumentWalker(urwid.ListWalker):
     """ListWalker-compatible class for browsing collections."""
+
     def __init__(self, documents):
         self.pos = 0
         self.documents = documents
@@ -84,6 +90,7 @@ class DocumentWalker(urwid.ListWalker):
 
 
 class CollectionBrowser(object):
+    """Main interface allowing browsing of collections and it's documents."""
 
     palette = [
         ('focus', 'black', 'yellow'),
@@ -93,6 +100,7 @@ class CollectionBrowser(object):
         self.db = db
 
     def main(self):
+        """Setup the urwid interface and run the eventloop."""
         self.stack = [self.db]
         self.collections = self.db.collection_names()
         collection_walker = urwid.SimpleListWalker(
@@ -109,6 +117,7 @@ class CollectionBrowser(object):
         self.loop.run()
 
     def unhandled_input(self, key):
+        """Any input not handled by urwid itself."""
         if key == 'q':
             raise urwid.ExitMainLoop()
 
