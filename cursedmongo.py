@@ -138,10 +138,13 @@ class CollectionBrowser(object):
 
             elif 'values' in parent:
                 # Item in a dict or schema
-                selected_item = wid.get_focus()[0]
+                selected_item, selected_pos = wid.get_focus()
                 selected_text = selected_item.original_widget.get_text()[0]
                 key = selected_text.split(':')[0]
-                values = parent['values'][key]
+                if isinstance(parent['values'], list):
+                    values = parent['values'][selected_pos]
+                else:
+                    values = parent['values'][key]
                 self.stack.append({
                     'collection': parent['collection'],
                     'document': parent['document'],
