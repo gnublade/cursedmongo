@@ -1,2 +1,2 @@
-pymongo==2.1
-urwid==1.0.1
+pymongo==2.3
+urwid==1.0.2

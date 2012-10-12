@@ -5,9 +5,9 @@ import json
 import pymongo
 import urwid
 
+from bson.dbref import DBRef
+from bson.objectid import ObjectId
 from pymongo.database import Database
-from pymongo.dbref import DBRef
-from pymongo.objectid import ObjectId
 
 
 class SelectableText(urwid.Text):
