@@ -1,0 +1,2 @@
+pymongo==2.1
+urwid==1.0.1
