@@ -98,9 +98,6 @@ class CollectionBrowser(object):
 
     def __init__(self, db):
         self.db = db
-
-    def main(self):
-        """Setup the urwid interface and run the eventloop."""
         self.stack = [self.db]
         self.collections = self.db.collection_names()
         collection_walker = urwid.SimpleListWalker(
@@ -110,8 +107,10 @@ class CollectionBrowser(object):
         self.documents = GeneratorList([urwid.Text("No Collection Selected")])
         self.document_walker = DocumentWalker(self.documents)
         self.document_listbox = urwid.ListBox(self.document_walker)
-
         self.columns = urwid.Columns([self.collection_listbox], dividechars=1)
+
+    def main(self):
+        """Setup the urwid interface and run the eventloop."""
         self.loop = urwid.MainLoop(self.columns, self.palette,
                                    unhandled_input=self.unhandled_input)
         self.loop.run()
