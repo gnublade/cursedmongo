@@ -60,13 +60,13 @@ class GeneratorList(list):
 class DocumentWalker(urwid.ListWalker):
     """ListWalker-compatible class for browsing collections."""
 
-    def __init__(self, documents):
+    def __init__(self, contents):
         self.pos = 0
-        self.documents = documents
+        self.contents = contents
 
     def _get_at_pos(self, pos):
         """Return a widget and the position passed."""
-        doc = self.documents[pos]
+        doc = self.contents[pos]
         key = doc.get('_id') or doc.get('name', pos)
         widget = SelectableText(encoder(key))
         return urwid.AttrMap(widget, None, 'focus'), pos
