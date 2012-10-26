@@ -123,75 +123,78 @@ class CollectionBrowser(object):
         wid = self.columns.get_focus()
 
         if key == 'enter':
-            idx = self.columns.get_focus_column()
-            self.columns.widget_list[idx + 1:] = []
-            self.stack[idx + 1:] = []
-            parent = self.stack[idx]
-
-            if isinstance(parent, Database):
-                # Collection selected
-                name = self.collections[wid.get_focus()[1]]
-                collection = parent[name]
-                self.stack.append({'collection': collection})
-                self.display_collection(collection)
-
-            elif 'values' in parent:
-                # Item in a dict or schema
-                selected_item, selected_pos = wid.get_focus()
-                selected_text = selected_item.original_widget.get_text()[0]
-                key = selected_text.split(':')[0]
-                if isinstance(parent['values'], list):
-                    values = parent['values'][selected_pos]
-                else:
-                    values = parent['values'][key]
-                self.stack.append({
-                    'collection': parent['collection'],
-                    'document': parent['document'],
-                    'values': values,
-                })
-                if isinstance(values, dict):
-                    self.display_document(values)
-                elif isinstance(values, list):
-                    self.display_list(values)
-                else:
-                    selected_item = wid.get_focus()[0].original_widget
-                    if isinstance(selected_item, urwid.Edit):
-                        text = selected_item.get_edit_text()
-                        key = selected_item.get_caption()[:-1]
-                        # Save the owner document.
-                        value = json.loads(text, object_hook=object_hook)
-                        parent['values'][key] = text
-                        #parent['collection'].save(parent['document'])
-                        list_item_value = json.dumps(text, default=encoder)
-                        list_item = "%s: %s" % (encoder(key), list_item_value)
-                        textbox = urwid.SelectableText(list_item, wrap='clip')
-                    else:
-                        text = selected_item.get_text()[0]
-                        name, sep, value = text.partition(':')
-                        textbox = urwid.Edit("%s:" % name, value)
-                    selected_item.original_widget = textbox
-
-            elif 'collection' in parent:
-                # Document selected
-                selected_item = wid.get_focus()[0]
-                pk = decoder(selected_item.original_widget.get_text()[0])
-                doc = parent['collection'].find_one({'_id': pk})
-                self.stack.append({
-                    'collection': parent['collection'],
-                    'document': doc,
-                    'values': doc,
-                })
-                self.display_document(doc)
-
-            else:
-                selected_item = wid.get_focus()[0]
-                text = selected_item.original_widget.get_text()[0]
-                selected_item.original_widget = urwid.Edit(edit_text=text)
-
-        if key == 's':
+            self.select_item(wid)
+        elif key == 's':
             self.save_document()
 
         return key
+
+    def select_item(self, wid):
+        """Expand (or edit) the currently selected item."""
+        idx = self.columns.get_focus_column()
+        self.columns.widget_list[idx + 1:] = []
+        self.stack[idx + 1:] = []
+        parent = self.stack[idx]
+
+        if isinstance(parent, Database):
+            # Collection selected
+            name = self.collections[wid.get_focus()[1]]
+            collection = parent[name]
+            self.stack.append({'collection': collection})
+            self.display_collection(collection)
+
+        elif 'values' in parent:
+            # Item in a dict or schema
+            selected_item, selected_pos = wid.get_focus()
+            selected_text = selected_item.original_widget.get_text()[0]
+            key = selected_text.split(':')[0]
+            if isinstance(parent['values'], list):
+                values = parent['values'][selected_pos]
+            else:
+                values = parent['values'][key]
+            self.stack.append({
+                'collection': parent['collection'],
+                'document': parent['document'],
+                'values': values,
+            })
+            if isinstance(values, dict):
+                self.display_document(values)
+            elif isinstance(values, list):
+                self.display_list(values)
+            else:
+                selected_item = wid.get_focus()[0].original_widget
+                if isinstance(selected_item, urwid.Edit):
+                    text = selected_item.get_edit_text()
+                    key = selected_item.get_caption()[:-1]
+                    # Save the owner document.
+                    value = json.loads(text, object_hook=object_hook)
+                    parent['values'][key] = text
+                    #parent['collection'].save(parent['document'])
+                    list_item_value = json.dumps(text, default=encoder)
+                    list_item = "%s: %s" % (encoder(key), list_item_value)
+                    textbox = urwid.SelectableText(list_item, wrap='clip')
+                else:
+                    text = selected_item.get_text()[0]
+                    name, sep, value = text.partition(':')
+                    textbox = urwid.Edit("%s:" % name, value)
+                selected_item.original_widget = textbox
+
+        elif 'collection' in parent:
+            # Document selected
+            selected_item = wid.get_focus()[0]
+            pk = decoder(selected_item.original_widget.get_text()[0])
+            doc = parent['collection'].find_one({'_id': pk})
+            self.stack.append({
+                'collection': parent['collection'],
+                'document': doc,
+                'values': doc,
+            })
+            self.display_document(doc)
+
+        else:
+            selected_item = wid.get_focus()[0]
+            text = selected_item.original_widget.get_text()[0]
+            selected_item.original_widget = urwid.Edit(edit_text=text)
 
     def display_collection(self, collection):
         self.columns.widget_list.append(self.document_listbox)
