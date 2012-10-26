@@ -10,6 +10,9 @@ from bson.objectid import ObjectId
 from pymongo.database import Database
 
 
+COLLECTION_COL = 0
+DOCUMENT_COL = 1
+
 class SelectableText(urwid.Text):
     """Selectable text widget."""
 
@@ -100,14 +103,20 @@ class CollectionBrowser(object):
         self.db = db
         self.stack = [self.db]
         self.collections = self.db.collection_names()
-        collection_walker = urwid.SimpleListWalker(
-            [urwid.AttrMap(w, None, 'focus')
-             for w in [SelectableText(n) for n in self.collections]])
-        self.collection_listbox = urwid.ListBox(collection_walker)
-        self.documents = GeneratorList([urwid.Text("No Collection Selected")])
-        self.document_walker = DocumentWalker(self.documents)
-        self.document_listbox = urwid.ListBox(self.document_walker)
-        self.columns = urwid.Columns([self.collection_listbox], dividechars=1)
+
+        self.init_columns()
+
+    def init_columns(self):
+        items = [SelectableText(n) for n in self.collections]
+        collection_listbox = self.create_column(items)
+        self.columns = urwid.Columns([collection_listbox], dividechars=1)
+
+    def create_column(self, items):
+        # Decorate the items so that they can receive the focus palette.
+        items = [urwid.AttrMap(w, None, 'focus') for w in items]
+        list_walker = urwid.SimpleListWalker(items)
+        column = urwid.ListBox(list_walker)
+        return column
 
     def main(self):
         """Setup the urwid interface and run the eventloop."""
@@ -197,8 +206,10 @@ class CollectionBrowser(object):
             selected_item.original_widget = urwid.Edit(edit_text=text)
 
     def display_collection(self, collection):
-        self.columns.widget_list.append(self.document_listbox)
-        self.documents._generator = collection.find()
+        self.documents = GeneratorList(collection.find())
+        self.document_walker = DocumentWalker(self.documents)
+        document_listbox = urwid.ListBox(self.document_walker)
+        self.columns.widget_list[DOCUMENT_COL:] = [document_listbox]
 
     def display_document(self, doc):
         schema_walker = urwid.SimpleListWalker([

@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 from mock import MagicMock, Mock
 from unittest2 import TestCase
 
@@ -20,6 +22,7 @@ class MockCollection(MagicMock):
 class CollectionBrowserTest(TestCase):
 
     def _create_browser(self, collections):
+        collections = OrderedDict(collections)
         db = MagicMock(wraps=collections)
         db.__class__ = Database
         db.collection_names = Mock(return_value=collections.keys())
@@ -75,3 +78,14 @@ class CollectionBrowserTest(TestCase):
         self.assertEqual(len(columns), 2)
         documents = self._get_contents(browser, 1)
         self.assertEqual(len(documents), 5)
+
+    def test_changing_selected_collection(self):
+        browser = self._create_browser([
+            ('one', [{'_id': "document_in_collection_one"}]),
+            ('two', [{'_id': "document_in_collection_two"}]),
+        ])
+        self._select_collection(browser, 0)
+        self._select_collection(browser, 1)
+        self._render(browser)
+        documents = self._get_contents(browser, 1)
+        self.assertEqual(documents[0]['_id'], "document_in_collection_two")
