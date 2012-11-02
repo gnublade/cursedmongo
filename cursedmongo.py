@@ -13,6 +13,7 @@ from pymongo.database import Database
 COLLECTION_COL = 0
 DOCUMENT_COL = 1
 
+
 class SelectableText(urwid.Text):
     """Selectable text widget."""
 
@@ -97,6 +98,7 @@ class CollectionBrowser(object):
 
     palette = [
         ('focus', 'black', 'yellow'),
+        ('faint', 'light gray', 'default'),
     ]
 
     def __init__(self, db):
@@ -212,11 +214,17 @@ class CollectionBrowser(object):
         self.columns.widget_list[DOCUMENT_COL:] = [document_listbox]
 
     def display_document(self, doc):
-        schema_walker = urwid.SimpleListWalker([
-            urwid.AttrMap(w, None, 'focus')
-            for w in [SelectableText("%s: %s" % (
-                encoder(n), json.dumps(doc[n], default=encoder)), wrap='clip')
-                for n in doc]])
+        items = [SelectableText([
+            (None, encoder(n)),
+            (None, ": "),
+            ('faint', json.dumps(doc[n], default=encoder)),
+        ], wrap='clip') for n in doc]
+        focus_map = {
+            None: 'focus',
+            'faint': 'focus',
+        }
+        items = [urwid.AttrMap(w, None, focus_map) for w in items]
+        schema_walker = urwid.SimpleListWalker(items)
         schema_listbox = urwid.ListBox(schema_walker)
         #doc_textbox = urwid.Edit("", multiline=True, allow_tab=True)
         self.columns.widget_list.append(schema_listbox)
