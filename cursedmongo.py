@@ -10,9 +10,14 @@ from bson.objectid import ObjectId
 from pymongo.database import Database
 
 
+# Index into the columns
 COLLECTION_COL = 0
 DOCUMENT_COL = 1
 
+CONNECTION_STACK_IDX = 0
+DATABASE_STACK_IDX = 1
+COLLECTION_STACK_IDX = 2
+DOCUMENT_STACK_IDX = 3
 
 class SelectableText(urwid.Text):
     """Selectable text widget."""
@@ -101,15 +106,20 @@ class CollectionBrowser(object):
         ('faint', 'light gray', 'default'),
     ]
 
-    def __init__(self, db):
-        self.db = db
-        self.stack = [self.db]
-        self.collections = self.db.collection_names()
+    def __init__(self, connection, database=None):
+        self.connection = connection
+        self.databases = connection.database_names()
+        self.stack = [self.connection]
+        if database:
+            self.stack_offset = 1
+            self.select_database(self.connection[database])
+            self.init_columns(self.collections)
+        else:
+            self.stack_offset = 0
+            self.init_columns(self.databases)
 
-        self.init_columns()
-
-    def init_columns(self):
-        items = [SelectableText(n) for n in self.collections]
+    def init_columns(self, content):
+        items = [SelectableText(n) for n in content]
         collection_listbox = self.create_column(items)
         self.columns = urwid.Columns([collection_listbox], dividechars=1)
 
@@ -119,6 +129,17 @@ class CollectionBrowser(object):
         list_walker = urwid.SimpleListWalker(items)
         column = urwid.ListBox(list_walker)
         return column
+
+    def select_database(self, database):
+        """Selects a database, deleting the remaining stack."""
+        self.stack[DATABASE_STACK_IDX:] = [database]
+        # The names of the collections in the database.
+        self.collections = database.collection_names()
+        self.stack_offset = 1
+
+    def select_collection(self, collection):
+        """Selects a collection, deleting the remaining stack."""
+        self.stack[COLLECTION_STACK_IDX:] = [{'collection': collection}]
 
     def main(self):
         """Setup the urwid interface and run the eventloop."""
@@ -144,14 +165,21 @@ class CollectionBrowser(object):
         """Expand (or edit) the currently selected item."""
         idx = self.columns.get_focus_column()
         self.columns.widget_list[idx + 1:] = []
-        self.stack[idx + 1:] = []
-        parent = self.stack[idx]
+        self.stack[idx + self.stack_offset + 1:] = []
+        parent = self.stack[idx + self.stack_offset]
 
-        if isinstance(parent, Database):
+        if isinstance(parent, pymongo.Connection):
+            # Database selected
+            name = self.databases[wid.get_focus()[1]]
+            database = parent[name]
+            self.select_database(database)
+            self.display_database(database)
+
+        elif isinstance(parent, Database):
             # Collection selected
             name = self.collections[wid.get_focus()[1]]
             collection = parent[name]
-            self.stack.append({'collection': collection})
+            self.select_collection(collection)
             self.display_collection(collection)
 
         elif 'values' in parent:
@@ -207,10 +235,15 @@ class CollectionBrowser(object):
             text = selected_item.original_widget.get_text()[0]
             selected_item.original_widget = urwid.Edit(edit_text=text)
 
+    def display_database(self, database):
+        items = [SelectableText(n) for n in self.collections]
+        listbox = self.create_column(items)
+        self.columns.widget_list[COLLECTION_COL:] = [listbox]
+
     def display_collection(self, collection):
-        self.documents = GeneratorList(collection.find())
-        self.document_walker = DocumentWalker(self.documents)
-        document_listbox = urwid.ListBox(self.document_walker)
+        documents = GeneratorList(collection.find())
+        document_walker = DocumentWalker(documents)
+        document_listbox = urwid.ListBox(document_walker)
         self.columns.widget_list[DOCUMENT_COL:] = [document_listbox]
 
     def display_document(self, doc):
@@ -251,7 +284,7 @@ class CollectionBrowser(object):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('database')
+    parser.add_argument('database', nargs='?')
     parser.add_argument('--host', default='localhost',
                         help='server to connect to')
     parser.add_argument('--port', type=int, default=27017,
@@ -259,8 +292,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     conn = pymongo.Connection(args.host, args.port)
-    db = conn[args.database]
     try:
-        CollectionBrowser(db).main()
+        CollectionBrowser(conn, args.database).main()
     except KeyboardInterrupt:
         pass
