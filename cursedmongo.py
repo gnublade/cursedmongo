@@ -70,10 +70,13 @@ class DocumentWalker(urwid.ListWalker):
 
     def _get_at_pos(self, pos):
         """Return a widget and the position passed."""
-        doc = self.contents[pos]
-        key = doc.get('_id') or doc.get('name', pos)
-        widget = SelectableText(encoder(key))
-        return urwid.AttrMap(widget, None, 'focus'), pos
+        try:
+            doc = self.contents[pos]
+            key = doc.get('_id') or doc.get('name', pos)
+            widget = SelectableText(encoder(key))
+            return urwid.AttrMap(widget, None, 'focus'), pos
+        except StopIteration:
+            return None, None
 
     def get_focus(self):
         return self._get_at_pos(self.pos)
@@ -83,10 +86,7 @@ class DocumentWalker(urwid.ListWalker):
         self._modified()
 
     def get_next(self, pos):
-        try:
-            return self._get_at_pos(pos + 1)
-        except StopIteration:
-            return None, None
+        return self._get_at_pos(pos + 1)
 
     def get_prev(self, pos):
         pos = pos - 1
