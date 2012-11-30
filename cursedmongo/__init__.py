@@ -282,7 +282,7 @@ class CollectionBrowser(object):
         self.display_document(doc['_id'])
 
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('database', nargs='?')
     parser.add_argument('--host', default='localhost',
