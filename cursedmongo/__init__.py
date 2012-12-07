@@ -19,6 +19,7 @@ DATABASE_STACK_IDX = 1
 COLLECTION_STACK_IDX = 2
 DOCUMENT_STACK_IDX = 3
 
+
 class SelectableText(urwid.Text):
     """Selectable text widget."""
 
@@ -102,6 +103,7 @@ class CollectionBrowser(object):
     """Main interface allowing browsing of collections and it's documents."""
 
     palette = [
+        ('header', 'bold, black', 'light gray'),
         ('focus', 'black', 'yellow'),
         ('faint', 'light gray', 'default'),
     ]
@@ -113,21 +115,24 @@ class CollectionBrowser(object):
         if database:
             self.stack_offset = 1
             self.select_database(self.connection[database])
-            self.init_columns(self.collections)
+            self.init_columns("Collections", self.collections)
         else:
             self.stack_offset = 0
-            self.init_columns(self.databases)
+            self.init_columns("Databases", self.databases)
 
-    def init_columns(self, content):
+    def init_columns(self, title, content):
         items = [SelectableText(n) for n in content]
-        collection_listbox = self.create_column(items)
-        self.columns = urwid.Columns([collection_listbox], dividechars=1)
+        collection_column = self.create_column(title, items)
+        self.columns = urwid.Columns([collection_column], dividechars=1)
 
-    def create_column(self, items):
+    def create_column(self, title, items):
         # Decorate the items so that they can receive the focus palette.
         items = [urwid.AttrMap(w, None, 'focus') for w in items]
         list_walker = urwid.SimpleListWalker(items)
-        column = urwid.ListBox(list_walker)
+        listbox = urwid.ListBox(list_walker)
+        header_text = urwid.Text(title)
+        header = urwid.AttrMap(urwid.Padding(header_text), 'header')
+        column = urwid.Frame(listbox, header)
         return column
 
     def select_database(self, database):
@@ -152,7 +157,8 @@ class CollectionBrowser(object):
         if key == 'q':
             raise urwid.ExitMainLoop()
 
-        wid = self.columns.get_focus()
+        column = self.columns.get_focus()
+        wid, options = column.contents['body']
 
         if key == 'enter':
             self.select_item(wid)
@@ -180,26 +186,29 @@ class CollectionBrowser(object):
             name = self.collections[wid.get_focus()[1]]
             collection = parent[name]
             self.select_collection(collection)
-            self.display_collection(collection)
+            self.display_collection(name, collection)
 
         elif 'values' in parent:
             # Item in a dict or schema
             selected_item, selected_pos = wid.get_focus()
             selected_text = selected_item.original_widget.get_text()[0]
-            key = selected_text.split(':')[0]
             if isinstance(parent['values'], list):
                 values = parent['values'][selected_pos]
+                title = "%s[%d]" % (self.stack[-1]['title'], selected_pos)
             else:
+                key = selected_text.split(':')[0]
                 values = parent['values'][key]
+                title = str(key)
             self.stack.append({
                 'collection': parent['collection'],
                 'document': parent['document'],
                 'values': values,
+                'title': title,
             })
             if isinstance(values, dict):
-                self.display_document(values)
+                self.display_document(title, values)
             elif isinstance(values, list):
-                self.display_list(values)
+                self.display_list(title, values)
             else:
                 selected_item = wid.get_focus()[0].original_widget
                 if isinstance(selected_item, urwid.Edit):
@@ -228,7 +237,7 @@ class CollectionBrowser(object):
                 'document': doc,
                 'values': doc,
             })
-            self.display_document(doc)
+            self.display_document(repr(pk), doc)
 
         else:
             selected_item = wid.get_focus()[0]
@@ -237,16 +246,19 @@ class CollectionBrowser(object):
 
     def display_database(self, database):
         items = [SelectableText(n) for n in self.collections]
-        listbox = self.create_column(items)
-        self.columns.widget_list[COLLECTION_COL:] = [listbox]
+        column = self.create_column("Collections", items)
+        self.columns.widget_list[COLLECTION_COL:] = [column]
 
-    def display_collection(self, collection):
+    def display_collection(self, name, collection):
         documents = GeneratorList(collection.find())
         document_walker = DocumentWalker(documents)
-        document_listbox = urwid.ListBox(document_walker)
-        self.columns.widget_list[DOCUMENT_COL:] = [document_listbox]
+        listbox = urwid.ListBox(document_walker)
+        header_text = urwid.Text(name)
+        header = urwid.AttrMap(urwid.Padding(header_text), 'header')
+        column = urwid.Frame(listbox, header)
+        self.columns.widget_list[DOCUMENT_COL:] = [column]
 
-    def display_document(self, doc):
+    def display_document(self, title, doc):
         items = [SelectableText([
             (None, encoder(n)),
             (None, ": "),
@@ -258,21 +270,27 @@ class CollectionBrowser(object):
         }
         items = [urwid.AttrMap(w, None, focus_map) for w in items]
         schema_walker = urwid.SimpleListWalker(items)
-        schema_listbox = urwid.ListBox(schema_walker)
+        listbox = urwid.ListBox(schema_walker)
+        header_text = urwid.Text(title)
+        header = urwid.AttrMap(urwid.Padding(header_text), 'header')
+        column = urwid.Frame(listbox, header)
         #doc_textbox = urwid.Edit("", multiline=True, allow_tab=True)
-        self.columns.widget_list.append(schema_listbox)
+        self.columns.widget_list.append(column)
             #urwid.Filler(doc_textbox, valign='top'))
         #text = json.dumps(doc, indent=4, default=encoder)
         #doc_textbox.set_edit_text(text)
 
-    def display_list(self, values):
+    def display_list(self, title, values):
         list_walker = urwid.PollingListWalker([
             urwid.AttrMap(w, None, 'focus')
             for w in [
                 SelectableText(json.dumps(v, default=encoder), wrap='clip')
                 for v in values]])
-        list_listbox = urwid.ListBox(list_walker)
-        self.columns.widget_list.append(list_listbox)
+        listbox = urwid.ListBox(list_walker)
+        header_text = urwid.Text(title)
+        header = urwid.AttrMap(urwid.Padding(header_text), 'header')
+        column = urwid.Frame(listbox, header)
+        self.columns.widget_list.append(column)
 
     def save_document(self):
         textbox = self.columns.get_focus()

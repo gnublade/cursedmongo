@@ -44,23 +44,26 @@ class CollectionBrowserTest(TestCase):
         browser = CollectionBrowser(connection, name)
         return browser
 
-    def _get_columns(self, b):
-        return list(b.columns.contents)
+    def _get_columns(self, browser):
+        return list(browser.columns.contents)
 
-    def _get_contents(self, b, position=0):
-        c = self._get_columns(b)
-        return c[position][0].body.contents
+    def _get_contents(self, browser, position=0):
+        columns = self._get_columns(browser)
+        frame = columns[position][0]
+        listbox = frame.body
+        contents = listbox.body.contents
+        return contents
 
-    def _select_item(self, b, position=0):
-        c = self._get_contents(b)
-        c.set_focus(position)
-        b.unhandled_input('enter')
+    def _select_item(self, browser, position=0):
+        contents = self._get_contents(browser)
+        contents.set_focus(position)
+        browser.unhandled_input('enter')
 
-    def _render(self, b, size=(80, 25)):
-        return b.columns.render(size)
+    def _render(self, browser, size=(80, 25)):
+        return browser.columns.render(size)
 
-    def _print(self, b):
-        canvas = self._render(b)
+    def _print(self, browser):
+        canvas = self._render(browser)
         print "\n" + "\n".join(canvas.text) + "\n"
 
     def test_browse_databases_empty(self):
