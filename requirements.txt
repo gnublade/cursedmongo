@@ -1,4 +1,4 @@
 mock==1.0.0
-pymongo==2.3
+pymongo==2.5.2
 unittest2==0.5.1
 urwid==1.0.2
